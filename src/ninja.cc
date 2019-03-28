@@ -51,6 +51,7 @@
 #include "status.h"
 #include "util.h"
 #include "version.h"
+#include "json_graph_tool.h"
 
 using namespace std;
 
@@ -122,6 +123,7 @@ struct NinjaMain : public BuildLogUser {
 
   // The various subcommands, run via "-t XXX".
   int ToolGraph(const Options* options, int argc, char* argv[]);
+  int ToolJson(const Options* options, int argc, char* argv[]);
   int ToolQuery(const Options* options, int argc, char* argv[]);
   int ToolDeps(const Options* options, int argc, char* argv[]);
   int ToolMissingDeps(const Options* options, int argc, char* argv[]);
@@ -372,6 +374,26 @@ int NinjaMain::ToolGraph(const Options* options, int argc, char* argv[]) {
     graph.AddTarget(*n);
   graph.Finish();
 
+  return 0;
+}
+
+
+int NinjaMain::ToolJson(const Options* options, int argc, char* argv[]) {
+  vector<Node*> nodes;
+  string err;
+  if (!CollectTargetsFromArgs(argc, argv, &nodes, &err)) {
+    Error("%s", err.c_str());
+    return 1;
+  }
+
+  JsonGraphTool json_writer = JsonGraphTool(state_.bindings_.LookupVariable("builddir"));
+  
+  for (vector<Node*>::const_iterator n = nodes.begin(); n != nodes.end(); ++n){
+    json_writer.AddRootTarget(*n);
+  }
+
+  // Write to stdout
+  json_writer.Flush();
   return 0;
 }
 
@@ -1098,6 +1120,8 @@ const Tool* ChooseTool(const string& tool_name) {
       Tool::RUN_AFTER_LOGS, &NinjaMain::ToolMissingDeps },
     { "graph", "output graphviz dot file for targets",
       Tool::RUN_AFTER_LOAD, &NinjaMain::ToolGraph },
+    { "json", "output json for targets",
+      Tool::RUN_AFTER_LOAD, &NinjaMain::ToolJson },
     { "query", "show inputs/outputs for a path",
       Tool::RUN_AFTER_LOGS, &NinjaMain::ToolQuery },
     { "targets",  "list targets by their rule or depth in the DAG",
